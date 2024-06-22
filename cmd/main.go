@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"os"
 
+	"yovuelo/db"
 	"yovuelo/db/driver"
+	"yovuelo/db/ssh"
 	"yovuelo/server"
 )
 
@@ -25,7 +27,10 @@ func main() {
 	setEnvs()
 
 	//Conecta la DB
-	db, err := driver.Register(dbHost, sshUser, sshPassword, sshPort)
+	sshConfig := ssh.NewConfig(dbHost, sshUser, sshPassword, sshPort)
+	dbConfig := db.NewConfig(dbHost, dbUser, dbPassword, dbName, dbPort)
+
+	db, err := driver.Register(sshConfig, dbConfig)
 	if err != nil {
 		panic(err)
 	}

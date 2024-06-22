@@ -1,17 +1,21 @@
 package driver
 
 import (
-	"crypto/tls"
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"log"
 	"net"
+	"time"
 
+	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/ssh"
+	"yovuelo/db"
+	ssh2 "yovuelo/db/ssh"
 )
 
-// create human-readable SSH-key strings
 func keyString(k ssh.PublicKey) string {
 	return k.Type() + " " + base64.StdEncoding.EncodeToString(k.Marshal()) // e.g. "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTY...."
 }
@@ -55,45 +59,43 @@ func sshTunnel(sshRemoteHost, sshRemoteUser, sshRemotePassword, sshRemotePort st
 }
 
 // Función para registrar un usuario en la base de datos
-func Register(sshRemoteHost, sshRemoteUser, sshRemotePassword, sshRemotePort string) (*sql.DB, error) {
+func Register(ssh *ssh2.Config, db *db.Config) (*sql.DB, error) {
 	// Iniciar el túnel SSH
-	sshConn, err := sshTunnel(sshRemoteHost, sshRemoteUser, sshRemotePassword, sshRemotePort)
+	sshClient, err := sshTunnel(ssh.GetSSHRemoteHost(), ssh.GetSSHRemoteUser(), ssh.GetSSHRemotePassword(), ssh.GetSSHRemotePort())
 	if err != nil {
 		return nil, fmt.Errorf("error starting SSH tunnel: %v", err)
 	}
-	defer sshConn.Close()
+	defer sshClient.Close()
 
-	//// Configurar el DSN (Data Source Name) para la conexión a MySQL a través del túnel SSH
-	mysql.RegisterTLSConfig("custom", &tls.Config{}) // Opcional: configurar TLS si es necesario
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-		mySqlUsername, mySqlPassword, sshLocalHost, sshLocalPort, mySqlDatabase)
+	// Register the custom dial function with the MySQL driver
+	mysql.RegisterDialContext("mysql+tcp", MySQLDialContext(sshClient, ""))
+
+	// Configure MySQL connection
+	dsn := fmt.Sprintf("%s:%s@mysql+tcp(%s:%s)/%s", db.GetDBUser(), db.GetDBPassword(), db.GetDBHost(), db.GetDBPort(), db.GetDBName())
 
 	// Conectar a la base de datos MySQL
-	//db, err := sql.Open("mysql", dsn)
-	//if err != nil {
-	//	return nil, fmt.Errorf("error connecting to MySQL via SSH: %v", err)
-	//}
+	conn, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to MySQL via SSH: %v", err)
+	}
 
-	//// Iniciar transacción
-	//tx, err := db.Begin()
-	//if err != nil {
-	//	db.Close()
-	//	return nil, fmt.Errorf("error starting transaction: %v", err)
-	//}
-	//
-	//// Ejemplo de operación dentro de la transacción (no olvides hacer rollback o commit al finalizar)
-	//_, err = tx.Exec("INSERT INTO usuarios (nombre) VALUES (?)", name)
-	//if err != nil {
-	//	tx.Rollback()
-	//	db.Close()
-	//	return nil, fmt.Errorf("error inserting data: %v", err)
-	//}
-	//
-	//// Commit de la transacción
-	//if err := tx.Commit(); err != nil {
-	//	db.Close()
-	//	return nil, fmt.Errorf("error committing transaction: %v", err)
-	//}
+	conn.SetConnMaxLifetime(5 * time.Minute) // Tiempo máximo de vida de la conexión
+	conn.SetMaxIdleConns(5)                  // Número máximo de conexiones inactivas en el pool
+	conn.SetMaxOpenConns(20)                 // Número máximo de conexiones abiertas en el pool
 
-	return nil, nil
+	// Verify connection to the database
+	err = conn.Ping()
+	if err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
+	fmt.Println("Successfully connected to the database over SSH!")
+	return conn, nil
+}
+
+// MySQLDialContext is a custom dialer for MySQL over SSH
+func MySQLDialContext(client *ssh.Client, addr string) func(ctx context.Context, addr string) (net.Conn, error) {
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		return client.Dial("tcp", addr)
+	}
 }

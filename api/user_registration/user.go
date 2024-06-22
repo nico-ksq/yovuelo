@@ -2,14 +2,16 @@ package user_registration
 
 import (
 	"database/sql"
+	"log"
 
 	"yovuelo/db/user"
 	"yovuelo/routes/requests"
 )
 
 type UserRegistration interface {
-	Register(req requests.RegisterUserRequest) bool
+	RegisterUser(req requests.RegisterUserRequest) bool
 }
+
 type User struct {
 	database *sql.DB
 }
@@ -20,8 +22,19 @@ func New(db *sql.DB) User {
 	}
 }
 
-func (u User) Register(req requests.RegisterUserRequest) bool {
-	return false
+func (u User) RegisterUser(req requests.RegisterUserRequest) bool {
+	dbuser := transformToDBModel(req)
+	// Begin a transaction
+	tx, err := u.database.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = dbuser.Save(tx)
+	if err != nil {
+		// log error
+		return false
+	}
+	return true
 }
 
 // transformToDBModel transforma una solicitud de registro en un modelo de base de datos.
