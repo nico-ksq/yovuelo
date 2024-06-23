@@ -1,4 +1,4 @@
-package db
+package driver
 
 // Config struct definition
 type Config struct {

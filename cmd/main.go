@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"os"
 
-	"yovuelo/db"
+	"github.com/go-sql-driver/mysql"
 	"yovuelo/db/driver"
+	"yovuelo/db/migrations"
 	"yovuelo/db/ssh"
 	"yovuelo/server"
 )
@@ -28,12 +29,25 @@ func main() {
 
 	//Conecta la DB
 	sshConfig := ssh.NewConfig(dbHost, sshUser, sshPassword, sshPort)
-	dbConfig := db.NewConfig(dbHost, dbUser, dbPassword, dbName, dbPort)
+	dbConfig := driver.NewConfig(dbHost, dbUser, dbPassword, dbName, dbPort)
 
-	db, err := driver.Register(sshConfig, dbConfig)
+	// Iniciar el túnel SSH
+	sshClient, err := ssh.Tunnel(sshConfig.GetSSHRemoteHost(), sshConfig.GetSSHRemoteUser(), sshConfig.GetSSHRemotePassword(), sshConfig.GetSSHRemotePort())
+	if err != nil {
+		panic("error starting SSH tunnel: " + err.Error())
+	}
+	// Registrar dial function con MySQL driver
+	mysql.RegisterDialContext("mysql+tcp", driver.MySQLDialContext(sshClient, ""))
+
+	// Configure MySQL connection
+	dsn := fmt.Sprintf("%s:%s@mysql+tcp(%s:%s)/%s", dbConfig.GetDBUser(), dbConfig.GetDBPassword(), dbConfig.GetDBHost(), dbConfig.GetDBPort(), dbConfig.GetDBName())
+
+	db, err := driver.Register(sshConfig, dbConfig, dsn)
 	if err != nil {
 		panic(err)
 	}
+
+	migrations.Migrator(db, dsn)
 
 	// Inicializa el servidor
 	srv := server.NewServer(db)
