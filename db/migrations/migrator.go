@@ -3,21 +3,43 @@ package migrations
 import (
 	"database/sql"
 	"log"
+	"os"
+	"path/filepath"
+	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql" // Importa el driver de MySQL
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-func Migrator(db *sql.DB, dsn string) {
+func Migrator(db *sql.DB) {
 	// Inicializar la migración
-	m, err := migrate.New(
-		"file://db/migrations/sql",
-		"mysql://"+dsn,
+	driver, _ := mysql.WithInstance(db, &mysql.Config{
+		MigrationsTable:  "gorp_migration",
+		DatabaseName:     "u549962429_yovuelo",
+		NoLock:           false,
+		StatementTimeout: 5 * time.Second,
+	})
+
+	// Obtén el directorio de trabajo actual
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Error obteniendo el directorio de trabajo actual: %v", err)
+	}
+
+	// Construye la ruta absoluta al directorio de migraciones
+	migrationsDir := filepath.Join(wd, "db/migrations/sql")
+	migrationsPath := "file://" + migrationsDir
+
+	m, err := migrate.NewWithDatabaseInstance(
+		migrationsPath,
+		"u549962429_yovuelo",
+		driver,
 	)
 	if err != nil {
-		log.Fatalf("Error al inicializar la migración: %v", err)
+		panic("Migration fails")
 	}
 
 	// Aplicar las migraciones y registrar cada una
@@ -27,24 +49,8 @@ func Migrator(db *sql.DB, dsn string) {
 	}
 
 	// Obtener la lista de migraciones aplicadas
-	migrations, _, err := m.Version()
+	_, _, err = m.Version()
 	if err != nil && err != migrate.ErrNilVersion {
 		log.Fatalf("Error al obtener la versión de la migración: %v", err)
 	}
-	print(migrations)
-	//// Registrar las migraciones en la tabla gorp_migration
-	//for _, migration := range migrations {
-	//	migrationName := fmt.Sprintf("Migration %d applied", migration)
-	//	err = registerMigration(db, migrationName)
-	//	if err != nil {
-	//		log.Fatalf("Error al registrar la migración: %v", err)
-	//	}
-	//}
-}
-
-// Función para registrar una migración en la tabla gorp_migration
-func registerMigration(db *sql.DB, migrationName string) error {
-	insertMigration := `INSERT INTO gorp_migration (migration_name) VALUES (?);`
-	_, err := db.Exec(insertMigration, migrationName)
-	return err
 }

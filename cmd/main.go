@@ -47,7 +47,7 @@ func main() {
 		panic(err)
 	}
 
-	migrations.Migrator(db, dsn)
+	migrations.Migrator(db)
 
 	// Inicializa el servidor
 	srv := server.NewServer(db)
