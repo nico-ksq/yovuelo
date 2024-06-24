@@ -32,8 +32,7 @@ func (s *Server) UserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Guardar el usuario en la base de datos
-	// TODO return error
-	if s.user.RegisterUser(req) {
+	if err := s.user.RegisterUser(r.Context(), req); err != nil {
 		http.Error(w, "Error al guardar el usuario", http.StatusInternalServerError)
 		return
 	}

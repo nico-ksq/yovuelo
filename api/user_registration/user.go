@@ -1,6 +1,7 @@
 package user_registration
 
 import (
+	"context"
 	"database/sql"
 	"log"
 
@@ -9,7 +10,7 @@ import (
 )
 
 type UserRegistration interface {
-	RegisterUser(req requests.RegisterUserRequest) bool
+	RegisterUser(ctx context.Context, req requests.RegisterUserRequest) error
 }
 
 type User struct {
@@ -22,19 +23,20 @@ func New(db *sql.DB) User {
 	}
 }
 
-func (u User) RegisterUser(req requests.RegisterUserRequest) bool {
+func (u User) RegisterUser(ctx context.Context, req requests.RegisterUserRequest) error {
 	dbuser := transformToDBModel(req)
 	// Begin a transaction
-	tx, err := u.database.Begin()
+	tx, err := u.database.BeginTx(ctx, nil)
 	if err != nil {
 		log.Fatal(err)
+		return err
 	}
 	err = dbuser.Save(tx)
 	if err != nil {
 		// log error
-		return false
+		return err
 	}
-	return true
+	return nil
 }
 
 // transformToDBModel transforma una solicitud de registro en un modelo de base de datos.

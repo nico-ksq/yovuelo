@@ -9,11 +9,10 @@ import (
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
-	"yovuelo/db/ssh"
 )
 
-// Función para registrar drivers
-func Register(config *ssh.Config, dbConfig *Config, dsn string) (*sql.DB, error) {
+// Register Función para registrar drivers
+func Register(dsn string) (*sql.DB, error) {
 	// Conectar a la base de datos MySQL
 	conn, err := sql.Open("mysql", dsn)
 	if err != nil {

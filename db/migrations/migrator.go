@@ -47,10 +47,4 @@ func Migrator(db *sql.DB) {
 	if err != nil && err != migrate.ErrNoChange {
 		log.Fatalf("Error al aplicar la migración: %v", err)
 	}
-
-	// Obtener la lista de migraciones aplicadas
-	_, _, err = m.Version()
-	if err != nil && err != migrate.ErrNilVersion {
-		log.Fatalf("Error al obtener la versión de la migración: %v", err)
-	}
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"yovuelo/db/driver"
 	"yovuelo/db/migrations"
-	"yovuelo/db/ssh"
 	"yovuelo/server"
+	"yovuelo/ssh"
 )
 
 var (
@@ -41,8 +41,7 @@ func main() {
 
 	// Configure MySQL connection
 	dsn := fmt.Sprintf("%s:%s@mysql+tcp(%s:%s)/%s", dbConfig.GetDBUser(), dbConfig.GetDBPassword(), dbConfig.GetDBHost(), dbConfig.GetDBPort(), dbConfig.GetDBName())
-
-	db, err := driver.Register(sshConfig, dbConfig, dsn)
+	db, err := driver.Register(dsn)
 	if err != nil {
 		panic(err)
 	}
